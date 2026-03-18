@@ -13,7 +13,7 @@ import {
   type Category,
 } from '@/schemas/category'
 import { taskManager, type Task } from '@/schemas/task'
-import { computed, ref, type Ref } from 'vue'
+import { computed, onMounted, ref, type Ref } from 'vue'
 import z from 'zod'
 import BaseView from './BaseView.vue'
 
@@ -55,6 +55,10 @@ function loadRememberedOptions() {
   dueDate.value = x.dueDate
   selectedCategory.value = x.category
 }
+
+onMounted(() => {
+  loadRememberedOptions()
+})
 
 function saveRememberedOptions() {
   if (!rememberOptions.value) return
@@ -152,6 +156,61 @@ const taskList = ref(taskManager.all())
 const sortedTaskList: Ref<Task[]> = computed(() => {
   return taskList.value.sort((a, b) => b.created.getTime() - a.created.getTime())
 })
+
+function dueDateLabel(task: Task): string {
+  const rawDate = task.dueDate
+
+  // works best if dueDate is "YYYY-MM-DD" (from <input type="date">)
+  if (Number.isNaN(rawDate.getTime())) return ''
+  const date = dateTrim(rawDate)
+
+  const today = dateTrim(new Date())
+  const diffMs = date.getTime() - today.getTime()
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'Due today'
+  if (diffDays === 1) return 'Due in 1 day'
+  if (diffDays > 1) return `Due in ${diffDays} days`
+  if (diffDays === -1) return 'Overdue by 1 day'
+  return `Overdue by ${Math.abs(diffDays)} days`
+}
+
+function dueBadgeClass(dueLabel: string): string {
+  if (!dueLabel) return ''
+  if (dueLabel.startsWith('Overdue')) return 'badge-error'
+  if (dueLabel === 'Due today') return 'badge-warning'
+  return 'badge-ghost'
+}
+
+function createdDateLabel(task: Task): string {
+  const rawDate = task.created
+
+  // works best if dueDate is "YYYY-MM-DD" (from <input type="date">)
+  if (Number.isNaN(rawDate.getTime())) return ''
+  const date = dateTrim(rawDate)
+
+  const today = dateTrim(new Date())
+  const diffMs = today.getTime() - date.getTime()
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'Created today'
+  if (diffDays === 1) return 'Created 1 day ago'
+  if (diffDays >= 30) return 'Created over a month ago'
+  if (diffDays > 1) return `Created ${diffDays} days ago`
+  return 'Created today'
+}
+
+const selectedTask: Ref<Task | undefined> = ref(undefined)
+
+const confirmInsertModalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
+function confirmInsert() {
+  if (selectedTask.value === undefined) {
+    return
+  }
+  title.value = selectedTask.value.title
+  dueDate.value = selectedTask.value.dueDate
+  selectedCategory.value = selectedTask.value.category
+}
 </script>
 
 <template>
@@ -228,11 +287,49 @@ const sortedTaskList: Ref<Task[]> = computed(() => {
       </button>
     </div>
 
-    <!-- Working on still -->
-    <div class="border border-base-300 bg-base-100 rounded-box p-6 mt-5">
-      <div v-for="task in sortedTaskList" :key="task.id">
-        {{ task.title }} Created {{ dateToYYYYMMDD(task.created) }}
+    <div class="border border-base-300 bg-base-100 rounded-box p-6 mt-5 flex flex-col gap-2">
+      <!-- A trimmed down version of TaskItem -->
+      <div
+        v-for="task in sortedTaskList"
+        :key="task.id"
+        class="flex justify-between items-center hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
+        @click="((selectedTask = task), confirmInsertModalRef?.showModal())"
+      >
+        <!-- Left Side -->
+        <div class="flex gap-3 items-center">
+          <input
+            class="checkbox m-0 pointer-events-none"
+            type="checkbox"
+            :checked="task.completed"
+          />
+
+          <CategoryColor :category="categoryManager.findBy('id', task.category)" :size="4" />
+
+          <div class="flex flex-col gap-2">
+            <div class="truncate">Task: {{ task.title }}</div>
+            <div class="badge badge-outline">
+              {{ categoryManager.findBy('id', task.category)?.name }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side -->
+        <div class="flex gap-2">
+          <div class="badge" :class="dueBadgeClass(dueDateLabel(task))">
+            <b>Due:</b> {{ task.dueDate.toDateString() }}
+          </div>
+          <div class="badge badge-ghost">{{ createdDateLabel(task) }}</div>
+        </div>
       </div>
     </div>
   </BaseView>
+  <ConfirmationModal
+    ref="confirmInsertModalRef"
+    title="Insert task fields"
+    @confirm="confirmInsert"
+  >
+    Clicking on <b>Confirm</b> will fill in the form with the information used to create this task.
+    <div class="py-2 text-center font-bold">"{{ selectedTask?.title }}"</div>
+    It will overwrite any previously written data in the form.
+  </ConfirmationModal>
 </template>

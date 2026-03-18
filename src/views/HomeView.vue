@@ -196,15 +196,14 @@ const baseViewTitle = computed(() => {
       <template v-if="props.state === HomeState.Delete">
         <input type="radio" name="task_tabs" class="tab" aria-label="Deleted" />
         <div class="tab-content border-base-300 bg-base-100 p-3">
-          <div class="flex justify-center align-middle pb-2">
-            <!-- TODO: mt-3 may not be correct here... -->
-            <div class="text-xl" :class="{ 'mt-2 pr-5': deletedTasks.length > 0 }">
+          <div class="flex justify-center items-center gap-4 pb-2">
+            <div class="text-xl">
               Recently Deleted {{ deletedTasks.length }}
               {{ deletedTasks.length === 1 ? 'Task' : 'Tasks' }}
             </div>
             <button
               v-if="deletedTasks.length > 0"
-              class="btn btn-accent"
+              class="btn btn-accent btn-sm"
               @click="confirmClearRecentlyDeleteModalRef!.showModal"
             >
               Clear

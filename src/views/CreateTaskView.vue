@@ -287,6 +287,9 @@ function confirmInsert() {
       </button>
     </div>
 
+    <div class="text-center font-bold text-lg pt-7">Recently Created Tasks</div>
+    <div class="text-center text-base-content/70">Click a task to insert fields into the form</div>
+
     <div class="border border-base-300 bg-base-100 rounded-box p-6 mt-5 flex flex-col gap-2">
       <!-- A trimmed down version of TaskItem -->
       <div

@@ -45,7 +45,6 @@ const currentCategory = computed(() => {
 
 function loadRememberedOptions() {
   const x = rememberedOptions.load()
-  console.log(x)
   if (x === undefined) {
     return
   }

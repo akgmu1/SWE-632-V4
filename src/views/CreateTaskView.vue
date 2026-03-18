@@ -296,7 +296,12 @@ function confirmInsert() {
         v-for="task in sortedTaskList"
         :key="task.id"
         class="flex justify-between items-center hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
-        @click="((selectedTask = task), confirmInsertModalRef?.showModal())"
+        @click="
+          () => {
+            selectedTask = task
+            confirmInsertModalRef?.showModal()
+          }
+        "
       >
         <!-- Left Side -->
         <div class="flex gap-3 items-center">

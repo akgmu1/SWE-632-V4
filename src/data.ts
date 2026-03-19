@@ -1,7 +1,7 @@
 import { z, ZodObject } from 'zod'
 
 // Prefix used for key names, to keep site working across different versions
-const VERSION_PREFIX = 'v2'
+const VERSION_PREFIX = 'v3'
 
 type ManagerHooks<T> = {
   onStartup?: (data: T) => void

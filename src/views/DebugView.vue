@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { dateTrim } from '@/helper'
+import { notify } from '@/notification'
 import { DEFAULT_CATEGORY } from '@/schemas/category'
 import { taskManager, type CreateTask } from '@/schemas/task'
 import BaseView from './BaseView.vue'
@@ -61,6 +62,18 @@ function addTestTasks() {
       </div>
       <div>
         <button @click="addTestTasks" class="btn btn-primary">Add test tasks</button>
+      </div>
+      <div>
+        <button
+          @click="
+            () => {
+              notify('test', 'error')
+            }
+          "
+          class="btn btn-primary"
+        >
+          Test notification
+        </button>
       </div>
     </div>
   </BaseView>

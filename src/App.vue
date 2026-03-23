@@ -9,6 +9,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { RouterLink, RouterView } from 'vue-router'
+import { notifications } from './notification'
 
 const IS_DEV = import.meta.env.DEV
 </script>
@@ -77,6 +78,20 @@ const IS_DEV = import.meta.env.DEV
           </li>
         </ul>
       </div>
+    </div>
+  </div>
+  <div class="toast toast-end toast-bottom">
+    <div
+      v-for="n in notifications"
+      class="alert"
+      :class="{
+        'alert-success': n.type === 'success',
+        'alert-info': n.type === 'info',
+        'alert-warning': n.type === 'warning',
+        'alert-error': n.type === 'error',
+      }"
+    >
+      {{ n.message }}
     </div>
   </div>
 </template>

@@ -19,9 +19,22 @@ function openLogTime(task: Task) {
   logTimeModalRef.value!.showModal(task)
 }
 
-function logTime(entry: CreateTimeEntry) {
+function handleLogTime(entry: CreateTimeEntry) {
   timeEntryManager.add(entry)
   refreshTasks()
+  notify('Time entry added', 'success')
+}
+
+function handleUpdateTimeEntry(payload: { id: number; entry: CreateTimeEntry }) {
+  timeEntryManager.updateBy('id', payload.id, payload.entry)
+  refreshTasks()
+  notify('Time entry updated', 'info')
+}
+
+function handleDeleteTimeEntry(id: number) {
+  timeEntryManager.removeBy('id', id)
+  refreshTasks()
+  notify('Time entry deleted', 'error')
 }
 
 const sortOption = ref<SortOption>(SortOption.Created)
@@ -167,6 +180,7 @@ const baseViewTitle = computed(() => {
         and log time for a task.
       </span>
     </div>
+
     <div class="mb-4 flex justify-end">
       <label class="flex items-center gap-2">
         <span class="text-sm font-medium">Sort by:</span>
@@ -291,5 +305,10 @@ const baseViewTitle = computed(() => {
     <template #confirm> Recover </template>
   </ConfirmationModal>
 
-  <LogTimeModal ref="logTimeModalRef" @log-time="logTime" />
+  <LogTimeModal
+    ref="logTimeModalRef"
+    @logTime="handleLogTime"
+    @updateTimeEntry="handleUpdateTimeEntry"
+    @deleteTimeEntry="handleDeleteTimeEntry"
+  />
 </template>

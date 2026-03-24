@@ -4,7 +4,7 @@ import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import ToolTip from '@/components/ToolTip.vue'
 import { DataManager } from '@/data'
 import { ToolTipDirection } from '@/enums'
-import { dateToYYYYMMDD, dateTrim, randomColor } from '@/helper'
+import { createFormState, dateToYYYYMMDD, dateTrim, randomColor, triggerAddClass } from '@/helper'
 import router from '@/router'
 import {
   categoryManager,
@@ -14,13 +14,47 @@ import {
 } from '@/schemas/category'
 import { subtaskManager } from '@/schemas/subtask'
 import { taskManager, type Task } from '@/schemas/task'
-import { computed, onMounted, ref, type Ref } from 'vue'
+import { computed, nextTick, onMounted, ref, type Ref } from 'vue'
 import z from 'zod'
 import BaseView from './BaseView.vue'
 
-const inputRef: Ref<HTMLInputElement | null> = ref(null)
+const categories = ref<Category[]>(categoryManager.all())
+const existingCategory: Ref<number | undefined> = ref()
 
-const title = ref('')
+const form = createFormState(
+  {
+    title: '',
+    selectedCategory: DEFAULT_CATEGORY,
+    newCategoryName: '',
+  },
+  {
+    title: (x) => (x.trim().length > 0 ? '' : 'Title cannot be empty'),
+    newCategoryName: (x, form) => {
+      // No errors when not adding one
+      existingCategory.value = undefined
+      if (form.selectedCategory !== META_ADD_NEW_CATEGORY) {
+        return ''
+      }
+
+      const name = x.trim()
+      if (name.length === 0) {
+        return 'Category name cannot be empty'
+      }
+
+      for (const c of categories.value) {
+        if (c.name === name) {
+          existingCategory.value = c.id
+          return 'Category name already taken, please pick another name or select that category'
+        }
+      }
+
+      return ''
+    },
+  },
+)
+
+const createButtonRef: Ref<HTMLInputElement | null> = ref(null)
+
 const dueDate = ref(new Date())
 const rememberOptions = ref(true)
 
@@ -31,13 +65,12 @@ const rememberedOptionsSchema = z.object({
 
 const rememberedOptions = new DataManager(rememberedOptionsSchema, 'add-task-remembered-options')
 
-const categories = ref<Category[]>(categoryManager.all())
-const selectedCategory = ref<number>(DEFAULT_CATEGORY)
-const newCategoryName = ref('')
+// const selectedCategory = ref<number>(DEFAULT_CATEGORY)
+// const newCategoryName = ref('')
 const newCategoryColor = ref(randomColor())
 
 const currentCategory = computed(() => {
-  return categoryManager.findBy('id', selectedCategory.value)!
+  return categoryManager.findBy('id', form.values.selectedCategory)!
 })
 
 const newSubtaskText = ref('')
@@ -64,7 +97,7 @@ function loadRememberedOptions() {
     x.category = DEFAULT_CATEGORY
   }
   dueDate.value = x.dueDate
-  selectedCategory.value = x.category
+  form.values.selectedCategory = x.category
 }
 
 onMounted(() => {
@@ -75,64 +108,46 @@ function saveRememberedOptions() {
   if (!rememberOptions.value) return
   rememberedOptions.save({
     dueDate: dateTrim(dueDate.value),
-    category: selectedCategory.value,
+    category: form.values.selectedCategory,
   })
 }
 
-const modalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
-
-defineExpose({
-  showModal: () => {
-    categories.value = categoryManager.all()
-    selectedCategory.value = DEFAULT_CATEGORY
-    newCategoryName.value = ''
-    newCategoryColor.value = randomColor()
-    newSubtaskText.value = ''
-    tempSubtasks.value = []
-
-    loadRememberedOptions()
-
-    modalRef.value!.showModal()
-    setTimeout(() => inputRef.value?.focus(), 0)
-  },
-  close: () => modalRef.value!.close(),
-})
-
-const isAddingNewCategory = computed(() => selectedCategory.value === META_ADD_NEW_CATEGORY)
+const isAddingNewCategory = computed(() => form.values.selectedCategory === META_ADD_NEW_CATEGORY)
 
 function onCategoryChange(val: number) {
-  selectedCategory.value = val
+  form.values.selectedCategory = val
   if (val !== META_ADD_NEW_CATEGORY) {
-    newCategoryName.value = ''
+    form.values.newCategoryName = ''
     newCategoryColor.value = randomColor()
   }
 }
 
-const canConfirm = computed(() => {
-  if (!title.value.trim()) return false
-  if (isAddingNewCategory.value) {
-    return newCategoryName.value.trim().length > 0
-  }
-  return true
-})
+async function onConfirm() {
+  // Check for errors
+  form.touchAll()
+  await nextTick()
 
-function onConfirm() {
-  if (!canConfirm.value) return
+  if (form.state.hasErrors) {
+    triggerAddClass(createButtonRef.value!, 'animate-shake')
+    await nextTick()
+    ;(document.querySelector('.input-error')! as HTMLInputElement).focus()
+    return
+  }
 
   let finalCategory: number = DEFAULT_CATEGORY
 
   if (isAddingNewCategory.value) {
-    const newName = newCategoryName.value.trim()
+    const newName = form.values.newCategoryName.trim()
     finalCategory = categoryManager.add({
       name: newName,
       color: newCategoryColor.value,
     })
-    selectedCategory.value = finalCategory
+    form.values.selectedCategory = finalCategory
   } else {
-    finalCategory = selectedCategory.value
+    finalCategory = form.values.selectedCategory
   }
 
-  const text = title.value.trim()
+  const text = form.values.title.trim()
   const createdAt = new Date()
 
   const newTaskId = taskManager.add({
@@ -153,21 +168,22 @@ function onConfirm() {
 
   saveRememberedOptions()
 
-  title.value = ''
+  form.reset()
+  // title.value = ''
   newSubtaskText.value = ''
   tempSubtasks.value = []
 
   if (!rememberOptions.value) {
     dueDate.value = new Date()
-    selectedCategory.value = DEFAULT_CATEGORY
+    form.values.selectedCategory = DEFAULT_CATEGORY
   }
 
-  newCategoryName.value = ''
+  form.values.newCategoryName = ''
   newCategoryColor.value = randomColor()
 
   taskList.value = taskManager.all()
 
-  router.push('/')
+  return router.push('/')
 }
 
 function onCancel() {
@@ -231,9 +247,9 @@ function confirmInsert() {
   if (selectedTask.value === undefined) {
     return
   }
-  title.value = selectedTask.value.title
+  form.values.title = selectedTask.value.title
   dueDate.value = selectedTask.value.dueDate
-  selectedCategory.value = selectedTask.value.category
+  form.values.selectedCategory = selectedTask.value.category
 }
 </script>
 
@@ -241,14 +257,25 @@ function confirmInsert() {
   <BaseView title="Create Task">
     <div class="flex flex-col gap-4 w-1/2 mx-auto pb-4">
       <div class="flex flex-col gap-4 sm:flex-row">
-        <input
-          ref="inputRef"
-          v-model="title"
-          type="text"
-          placeholder="Title"
-          class="input-bordered input w-full"
-          @keyup.enter="onConfirm"
-        />
+        <div class="flex flex-col w-full">
+          <input
+            v-model="form.values.title"
+            @blur="form.touch('title')"
+            type="text"
+            placeholder="Title"
+            class="input-bordered input w-full"
+            :class="{
+              'input-error': form.touched.title && form.errors.title,
+            }"
+            @keyup.enter="onConfirm"
+          />
+
+          <label v-if="form.errors.title && form.touched.title" class="label">
+            <div class="label-text-alt text-error text-wrap">
+              {{ form.errors.title }}
+            </div>
+          </label>
+        </div>
 
         <input
           type="date"
@@ -265,7 +292,7 @@ function confirmInsert() {
 
         <select
           class="select-bordered select w-full"
-          :value="selectedCategory"
+          :value="form.values.selectedCategory"
           @change="onCategoryChange(Number(($event.target as HTMLSelectElement).value))"
         >
           <option value="" disabled>Selected Category (optional)</option>
@@ -276,7 +303,7 @@ function confirmInsert() {
       </div>
 
       <div v-if="isAddingNewCategory" class="flex items-center gap-3">
-        <ToolTip tip="Change Color" :direction="ToolTipDirection.Right">
+        <ToolTip tip="Change Color" :direction="ToolTipDirection.Top">
           <button
             type="button"
             @click="
@@ -289,13 +316,41 @@ function confirmInsert() {
             <CategoryColor :color="newCategoryColor" />
           </button>
         </ToolTip>
-        <input
-          v-model="newCategoryName"
-          type="text"
-          placeholder="New category name"
-          class="input-bordered input w-full"
-          @keyup.enter="onConfirm"
-        />
+        <div class="flex flex-col w-full">
+          <input
+            v-model="form.values.newCategoryName"
+            @blur="form.touch('newCategoryName')"
+            type="text"
+            placeholder="New category name"
+            class="input-bordered input w-full"
+            :class="{
+              'input-error': form.touched.newCategoryName && form.errors.newCategoryName,
+            }"
+            @keyup.enter="onConfirm"
+          />
+
+          <label v-if="form.errors.newCategoryName && form.touched.newCategoryName" class="label">
+            <div class="label-text-alt text-error text-wrap">
+              {{ form.errors.newCategoryName }}
+            </div>
+
+            <template v-if="existingCategory !== undefined">
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="
+                  () => {
+                    form.values.selectedCategory = existingCategory!
+                    form.values.newCategoryName = ''
+                    form.errors.newCategoryName = ''
+                    existingCategory = undefined
+                  }
+                "
+              >
+                Click to select that category
+              </button>
+            </template>
+          </label>
+        </div>
       </div>
 
       <div class="text-left">
@@ -334,12 +389,16 @@ function confirmInsert() {
       </label>
     </div>
 
+    <div class="flex justify-center py-3">
+      <div v-if="form.state.hasErrors" class="alert alert-error min-w-max">
+        <span>Please fix the errors above</span>
+      </div>
+    </div>
+
     <div class="flex justify-center">
       <button class="btn btn-outline" @click="onCancel">Cancel</button>
       <div class="px-4"></div>
-      <button class="btn btn-success" @click="onConfirm">
-        <slot name="confirm"> Create </slot>
-      </button>
+      <button ref="createButtonRef" class="btn btn-success" @click="onConfirm">Create</button>
     </div>
 
     <div class="text-center font-bold text-lg pt-7">Recently Created Tasks</div>

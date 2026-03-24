@@ -38,6 +38,8 @@ function handleDeleteTimeEntry(id: number) {
 }
 
 const sortOption = ref<SortOption>(SortOption.Created)
+const sortDescending = ref(false)
+
 const categories: Ref<Category[]> = ref(categoryManager.all())
 const tasks: Ref<Task[]> = ref(taskManager.all())
 const deletedTasks: Ref<Task[]> = ref(deletedTaskManager.all())
@@ -45,28 +47,44 @@ const deletedTasks: Ref<Task[]> = ref(deletedTaskManager.all())
 const search = ref('')
 const q = computed(() => search.value.trim().toLowerCase())
 
+function applyDirection(items: Task[]) {
+  return sortDescending.value ? [...items].reverse() : items
+}
+
 const activeTasks = computed(() =>
-  sortTasks(
-    tasks.value.filter(
-      (t) => !t.completed && (!q.value || t.title.toLowerCase().includes(q.value)),
+  applyDirection(
+    sortTasks(
+      tasks.value.filter(
+        (t) => !t.completed && (!q.value || t.title.toLowerCase().includes(q.value)),
+      ),
+      sortOption.value,
     ),
-    sortOption.value,
   ),
 )
 
 const completedTasks = computed(() =>
-  sortTasks(
-    tasks.value.filter((t) => t.completed && (!q.value || t.title.toLowerCase().includes(q.value))),
-    sortOption.value,
+  applyDirection(
+    sortTasks(
+      tasks.value.filter(
+        (t) => t.completed && (!q.value || t.title.toLowerCase().includes(q.value)),
+      ),
+      sortOption.value,
+    ),
   ),
 )
 
 const filteredDeletedTasks = computed(() =>
-  sortTasks(
-    deletedTasks.value.filter((t) => !q.value || t.title.toLowerCase().includes(q.value)),
-    sortOption.value,
+  applyDirection(
+    sortTasks(
+      deletedTasks.value.filter((t) => !q.value || t.title.toLowerCase().includes(q.value)),
+      sortOption.value,
+    ),
   ),
 )
+
+const activeTaskCount = computed(() => activeTasks.value.length)
+const completedTaskCount = computed(() => completedTasks.value.length)
+const deletedTaskCount = computed(() => filteredDeletedTasks.value.length)
 
 function refreshTasks() {
   tasks.value = [...taskManager.all()]
@@ -83,9 +101,7 @@ const selectedTask: Ref<Task | undefined> = ref(undefined)
 
 const confirmDeleteModalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
 function confirmDelete() {
-  if (!selectedTask.value) {
-    return
-  }
+  if (!selectedTask.value) return
 
   deletedTaskManager.add(selectedTask.value)
   taskManager.removeBy('id', selectedTask.value.id)
@@ -95,9 +111,7 @@ function confirmDelete() {
 
 const confirmRecoverModalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
 function confirmRecover() {
-  if (!selectedTask.value) {
-    return
-  }
+  if (!selectedTask.value) return
 
   taskManager.insert(selectedTask.value)
   deletedTaskManager.removeBy('id', selectedTask.value.id)
@@ -171,7 +185,9 @@ const baseViewTitle = computed(() => {
 
 <template>
   <BaseView :title="baseViewTitle">
-    <div class="mb-4 flex justify-center"><SearchBar v-model="search" /></div>
+    <div class="mb-4 flex justify-center">
+      <SearchBar v-model="search" />
+    </div>
 
     <div v-if="props.state === HomeState.Default && tasks.length > 0" class="alert alert-info mb-4">
       <span>
@@ -181,19 +197,29 @@ const baseViewTitle = computed(() => {
       </span>
     </div>
 
-    <div class="mb-4 flex justify-end">
+    <div class="mb-4 flex items-center justify-end gap-2">
       <label class="flex items-center gap-2">
         <span class="text-sm font-medium">Sort by:</span>
         <select v-model="sortOption" class="select select-bordered select-sm w-auto">
-          <option :value="SortOption.Name">Name (alphabetical)</option>
+          <option :value="SortOption.Name">Name</option>
           <option :value="SortOption.Created">Created Date</option>
           <option :value="SortOption.Due">Due Date</option>
         </select>
       </label>
+
+      <button class="btn btn-outline btn-sm" @click="sortDescending = !sortDescending">
+        {{ sortDescending ? '▼' : '▲' }}
+      </button>
     </div>
 
     <div class="tabs tabs-lift">
-      <input type="radio" name="task_tabs" class="tab" aria-label="Active" checked />
+      <input
+        type="radio"
+        name="task_tabs"
+        class="tab"
+        :aria-label="`Active (${activeTaskCount})`"
+        checked
+      />
       <div class="tab-content border-base-300 bg-base-100 p-3">
         <div v-if="activeTasks.length > 0" class="flex flex-col gap-2">
           <TaskItem
@@ -207,6 +233,19 @@ const baseViewTitle = computed(() => {
             @logTimeClicked="openLogTime"
           />
         </div>
+
+        <div v-else-if="q" class="py-6 text-center">
+          <div class="text-base font-medium">
+            No active tasks match "{{ search }}"
+          </div>
+          <div class="mt-1 text-sm text-base-content/70">
+            Try a different search term or clear the search.
+          </div>
+          <button class="btn btn-ghost btn-sm mt-3" @click="search = ''">
+            Clear search
+          </button>
+        </div>
+
         <div v-else class="py-2">
           There are no active tasks, click
           <RouterLink to="/create" class="link link-primary">here</RouterLink>
@@ -214,7 +253,12 @@ const baseViewTitle = computed(() => {
         </div>
       </div>
 
-      <input type="radio" name="task_tabs" class="tab" aria-label="Completed" />
+      <input
+        type="radio"
+        name="task_tabs"
+        class="tab"
+        :aria-label="`Completed (${completedTaskCount})`"
+      />
       <div class="tab-content border-base-300 bg-base-100 p-3">
         <div v-if="completedTasks.length > 0" class="flex flex-col gap-2">
           <TaskItem
@@ -227,6 +271,19 @@ const baseViewTitle = computed(() => {
             @clicked="taskClicked"
           />
         </div>
+
+        <div v-else-if="q" class="py-6 text-center">
+          <div class="text-base font-medium">
+            No completed tasks match "{{ search }}"
+          </div>
+          <div class="mt-1 text-sm text-base-content/70">
+            Try a different search term or clear the search.
+          </div>
+          <button class="btn btn-ghost btn-sm mt-3" @click="search = ''">
+            Clear search
+          </button>
+        </div>
+
         <div v-else-if="activeTasks.length > 0" class="py-2">
           No tasks are marked as completed. Click on the checkbox
           <div class="whitespace-nowrap inline-block">
@@ -239,6 +296,7 @@ const baseViewTitle = computed(() => {
           </div>
           next to an active task in order to mark it as complete.
         </div>
+
         <div v-else class="py-2">
           There are no active tasks to be completed, click
           <RouterLink to="/create" class="link link-primary">here</RouterLink>
@@ -247,7 +305,12 @@ const baseViewTitle = computed(() => {
       </div>
 
       <template v-if="props.state === HomeState.Delete">
-        <input type="radio" name="task_tabs" class="tab" aria-label="Deleted" />
+        <input
+          type="radio"
+          name="task_tabs"
+          class="tab"
+          :aria-label="`Deleted (${deletedTaskCount})`"
+        />
         <div class="tab-content border-base-300 bg-base-100 p-3">
           <div class="flex justify-center items-center gap-4 pb-2">
             <div class="text-xl">
@@ -262,6 +325,7 @@ const baseViewTitle = computed(() => {
               Clear
             </button>
           </div>
+
           <div v-if="filteredDeletedTasks.length > 0" class="flex flex-col gap-2">
             <TaskItem
               v-for="task in filteredDeletedTasks"
@@ -272,6 +336,19 @@ const baseViewTitle = computed(() => {
               @clicked="taskClicked"
             />
           </div>
+
+          <div v-else-if="q" class="py-6 text-center">
+            <div class="text-base font-medium">
+              No deleted tasks match "{{ search }}"
+            </div>
+            <div class="mt-1 text-sm text-base-content/70">
+              Try a different search term or clear the search.
+            </div>
+            <button class="btn btn-ghost btn-sm mt-3" @click="search = ''">
+              Clear search
+            </button>
+          </div>
+
           <div v-else class="py-2">
             There are no deleted tasks, when they are deleted you can recover them here if you
             choose to.

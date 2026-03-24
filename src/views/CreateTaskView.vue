@@ -14,7 +14,7 @@ import {
 } from '@/schemas/category'
 import { subtaskManager } from '@/schemas/subtask'
 import { taskManager, type Task } from '@/schemas/task'
-import { computed, nextTick, onMounted, ref, watch, type Ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import z from 'zod'
 import BaseView from './BaseView.vue'
 
@@ -85,12 +85,18 @@ const subtaskForm = createFormState(
   },
 )
 
+let timeout: number | undefined = undefined
 watch(subtaskForm.state, (s) => {
   if (s.hasErrors) {
-    setTimeout(() => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => {
       subtaskForm.clearTouchAndErrors()
     }, 3000)
   }
+})
+
+onBeforeUnmount(() => {
+  clearTimeout(timeout)
 })
 
 const tempSubtasks: Ref<string[]> = ref([])

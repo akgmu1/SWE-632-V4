@@ -62,7 +62,7 @@ const form = createFormState(
     title: () => task.value?.title ?? '',
     selectedCategory: () => task.value?.category ?? DEFAULT_CATEGORY,
     newCategoryName: '',
-    newCategoryColor: randomColor(),
+    newCategoryColor: randomColor,
     dueDate: () => task.value?.dueDate ?? new Date(),
   },
   {

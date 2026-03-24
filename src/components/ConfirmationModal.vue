@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { triggerAddClass } from '@/helper'
-import { ref, type Ref } from 'vue'
+import { nextTick, ref, type Ref } from 'vue'
 import BaseModal from './BaseModal.vue'
 
 interface Emits {
@@ -31,9 +31,10 @@ defineExpose({
   },
 })
 
-function onClick(confirm: boolean) {
+async function onClick(confirm: boolean) {
   if (confirm) {
     emits('confirm')
+    await nextTick()
     if (props.shouldClose) {
       modalRef.value!.close()
     } else {

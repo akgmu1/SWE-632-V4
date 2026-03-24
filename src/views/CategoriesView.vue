@@ -2,7 +2,7 @@
 import CategoryColor from '@/components/CategoryColor.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import ToolTip from '@/components/ToolTip.vue'
-import { randomColor } from '@/helper'
+import { createFormState, randomColor } from '@/helper'
 import {
   categoryManager,
   DEFAULT_CATEGORY,
@@ -12,14 +12,30 @@ import {
 import { taskManager } from '@/schemas/task'
 import { PencilIcon } from '@heroicons/vue/24/outline'
 import { TrashIcon } from '@heroicons/vue/24/solid'
-import { computed, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import BaseView from './BaseView.vue'
 
-// interface Emits {
-//   (e: 'updateCategory', category: Category): void
-//   (e: 'deleteCategory', category: Category): void
-// }
-// const emits = defineEmits<Emits>()
+const selectedCategory: Ref<Category | null> = ref(null)
+const categories: Ref<Category[]> = ref(categoryManager.all())
+const form = createFormState(
+  {
+    name: () => selectedCategory.value?.name ?? '',
+    color: () => selectedCategory.value?.color ?? randomColor(),
+  },
+  {
+    name: (x) => {
+      const name = x.trim()
+      if (name.length === 0) {
+        return 'Name cannot be empty'
+      }
+
+      if (categories.value.some((c) => c.id !== selectedCategory.value?.id && c.name === name)) {
+        return 'Name is already used for another category name'
+      }
+      return ''
+    },
+  },
+)
 
 function deleteCategory() {
   if (selectedCategory.value === null) {
@@ -32,20 +48,27 @@ function deleteCategory() {
   }
 }
 
-function updateCategory() {
+async function updateCategory() {
   if (selectedCategory.value === null) {
     return
   }
 
+  // Check for errors
+  form.touchAll()
+  await nextTick()
+
+  if (form.state.hasErrors) {
+    ;(document.querySelector('.input-error')! as HTMLInputElement).focus()
+    return
+  }
+
   categoryManager.updateBy('id', selectedCategory.value.id, {
-    name: name.value,
-    color: color.value,
+    name: form.values.name,
+    color: form.values.color,
   })
   categories.value = categoryManager.all()
 }
 
-const categories: Ref<Category[]> = ref(categoryManager.all())
-const selectedCategory: Ref<Category | null> = ref(null)
 const selectedCategoryTasks = computed(() => {
   return taskManager.filterBy('category', selectedCategory.value?.id ?? DEFAULT_CATEGORY)
 })
@@ -54,10 +77,8 @@ const defaultCategory = computed(() => categoryManager.findBy('id', DEFAULT_CATE
 
 const deleteModalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
 const updateModalRef: Ref<InstanceType<typeof ConfirmationModal> | null> = ref(null)
-const name = ref('')
-const color = ref('')
 
-const canConfirm = computed(() => name.value.trim().length > 0)
+const canConfirm = computed(() => !form.state.hasErrors)
 </script>
 
 <template>
@@ -79,8 +100,7 @@ const canConfirm = computed(() => name.value.trim().length > 0)
                 @click="
                   () => {
                     selectedCategory = c
-                    name = c.name
-                    color = c.color
+                    form.reset()
                     updateModalRef?.showModal()
                   }
                 "
@@ -119,12 +139,28 @@ const canConfirm = computed(() => name.value.trim().length > 0)
       :should-close="canConfirm"
       :positive="true"
     >
-      <label class="w-full input">
-        <span class="label">Name</span>
-        <div class="flex justify-center">
-          <input :placeholder="selectedCategory?.name" v-model="name" />
-        </div>
-      </label>
+      <div class="flex flex-col w-full">
+        <label
+          class="w-full input"
+          :class="{
+            'input-error': form.touched.name && form.errors.name,
+          }"
+        >
+          <span class="label">Name</span>
+          <div class="flex justify-center">
+            <input
+              :placeholder="selectedCategory?.name"
+              v-model="form.values.name"
+              @blur="form.touch('name')"
+            />
+          </div>
+        </label>
+        <label v-if="form.errors.name && form.touched.name" class="label">
+          <div class="label-text-alt text-error text-wrap">
+            {{ form.errors.name }}
+          </div>
+        </label>
+      </div>
       <div class="pt-2 flex gap-3">
         <div>Click to the color to change it</div>
         <div>
@@ -132,17 +168,22 @@ const canConfirm = computed(() => name.value.trim().length > 0)
             <button
               @click="
                 () => {
-                  color = randomColor()
+                  form.values.color = randomColor()
                 }
               "
               class="cursor-pointer"
             >
-              <CategoryColor :color="color" :size="6" />
+              <CategoryColor :color="form.values.color" :size="6" />
             </button>
           </ToolTip>
         </div>
       </div>
 
+      <div class="flex justify-center py-3">
+        <div v-if="form.state.hasErrors" class="alert alert-error min-w-max">
+          <span>Please fix the errors above</span>
+        </div>
+      </div>
       <template #confirm> Update </template>
     </ConfirmationModal>
 

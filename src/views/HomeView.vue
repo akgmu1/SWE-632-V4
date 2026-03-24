@@ -94,6 +94,12 @@ function refreshTasks() {
 
 function toggleTask(id: number, completed: boolean) {
   taskManager.updateBy('id', id, { completed })
+  let task = taskManager.findBy('id', id)
+  if (completed) {
+    notify(`Marked task as complete '${task?.title}'`, 'success')
+  } else {
+    notify(`Marked task as not complete '${task?.title}'`, 'warning')
+  }
   refreshTasks()
 }
 
@@ -162,6 +168,10 @@ const confirmClearRecentlyDeleteModalRef: Ref<InstanceType<typeof ConfirmationMo
 
 function clearRecentlyDeletedTasks() {
   deletedTaskManager.reset()
+  notify(
+    `Cleared ${deletedTasks.value.length} task${deletedTasks.value.length == 1 ? '' : 's'}`,
+    'info',
+  )
   refreshTasks()
 }
 

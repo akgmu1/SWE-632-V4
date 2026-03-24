@@ -12,15 +12,11 @@ import {
   META_ADD_NEW_CATEGORY,
   type Category,
 } from '@/schemas/category'
+import { subtaskManager } from '@/schemas/subtask'
 import { taskManager, type Task } from '@/schemas/task'
 import { computed, onMounted, ref, type Ref } from 'vue'
 import z from 'zod'
 import BaseView from './BaseView.vue'
-
-// interface Emits {
-//   (e: 'addTask', task: CreateTask): void
-// }
-// const emits = defineEmits<Emits>()
 
 const inputRef: Ref<HTMLInputElement | null> = ref(null)
 
@@ -39,9 +35,25 @@ const categories = ref<Category[]>(categoryManager.all())
 const selectedCategory = ref<number>(DEFAULT_CATEGORY)
 const newCategoryName = ref('')
 const newCategoryColor = ref(randomColor())
+
 const currentCategory = computed(() => {
   return categoryManager.findBy('id', selectedCategory.value)!
 })
+
+const newSubtaskText = ref('')
+const tempSubtasks = ref<string[]>([])
+
+function addTempSubtask() {
+  const text = newSubtaskText.value.trim()
+  if (!text) return
+
+  tempSubtasks.value.push(text)
+  newSubtaskText.value = ''
+}
+
+function removeTempSubtask(index: number) {
+  tempSubtasks.value.splice(index, 1)
+}
 
 function loadRememberedOptions() {
   const x = rememberedOptions.load()
@@ -63,7 +75,7 @@ function saveRememberedOptions() {
   if (!rememberOptions.value) return
   rememberedOptions.save({
     dueDate: dateTrim(dueDate.value),
-    category: selectedCategory.value, // TODO: Make sure not save META add
+    category: selectedCategory.value,
   })
 }
 
@@ -75,6 +87,8 @@ defineExpose({
     selectedCategory.value = DEFAULT_CATEGORY
     newCategoryName.value = ''
     newCategoryColor.value = randomColor()
+    newSubtaskText.value = ''
+    tempSubtasks.value = []
 
     loadRememberedOptions()
 
@@ -119,18 +133,29 @@ function onConfirm() {
   }
 
   const text = title.value.trim()
+  const createdAt = new Date()
 
-  taskManager.add({
+  const newTaskId = taskManager.add({
     title: text,
     completed: false,
     dueDate: dueDate.value,
     category: finalCategory,
-    created: new Date(),
+    created: createdAt,
+  })
+
+  tempSubtasks.value.forEach((subtaskText) => {
+    subtaskManager.add({
+      taskId: newTaskId,
+      completed: false,
+      text: subtaskText,
+    })
   })
 
   saveRememberedOptions()
 
   title.value = ''
+  newSubtaskText.value = ''
+  tempSubtasks.value = []
 
   if (!rememberOptions.value) {
     dueDate.value = new Date()
@@ -139,6 +164,8 @@ function onConfirm() {
 
   newCategoryName.value = ''
   newCategoryColor.value = randomColor()
+
+  taskList.value = taskManager.all()
 
   router.push('/')
 }
@@ -153,13 +180,12 @@ function onCancel() {
 
 const taskList = ref(taskManager.all())
 const sortedTaskList: Ref<Task[]> = computed(() => {
-  return taskList.value.sort((a, b) => b.created.getTime() - a.created.getTime())
+  return [...taskList.value].sort((a, b) => b.created.getTime() - a.created.getTime())
 })
 
 function dueDateLabel(task: Task): string {
   const rawDate = task.dueDate
 
-  // works best if dueDate is "YYYY-MM-DD" (from <input type="date">)
   if (Number.isNaN(rawDate.getTime())) return ''
   const date = dateTrim(rawDate)
 
@@ -184,7 +210,6 @@ function dueBadgeClass(dueLabel: string): string {
 function createdDateLabel(task: Task): string {
   const rawDate = task.created
 
-  // works best if dueDate is "YYYY-MM-DD" (from <input type="date">)
   if (Number.isNaN(rawDate.getTime())) return ''
   const date = dateTrim(rawDate)
 
@@ -245,14 +270,15 @@ function confirmInsert() {
         >
           <option value="" disabled>Selected Category (optional)</option>
           <option v-for="c in categories" :key="c.id" :value="c.id">
-            <div v-if="c.id === META_ADD_NEW_CATEGORY">+ Add new category…</div>
-            <div v-else>{{ c.name }}</div>
+            {{ c.id === META_ADD_NEW_CATEGORY ? '+ Add new category…' : c.name }}
           </option>
         </select>
       </div>
+
       <div v-if="isAddingNewCategory" class="flex items-center gap-3">
         <ToolTip tip="Change Color" :direction="ToolTipDirection.Right">
           <button
+            type="button"
             @click="
               () => {
                 newCategoryColor = randomColor()
@@ -272,12 +298,48 @@ function confirmInsert() {
         />
       </div>
 
-      <!-- Remember Options -->
+      <div class="text-left">
+        <div class="mb-2 font-semibold">Subtasks</div>
+
+        <div v-if="tempSubtasks.length" class="space-y-2">
+          <div
+            v-for="(subtask, index) in tempSubtasks"
+            :key="`temp-${index}`"
+            class="flex items-center gap-2"
+          >
+            <div class="flex-1 rounded bg-base-200 px-3 py-2">
+              {{ subtask }}
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs"
+              @click="removeTempSubtask(index)"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-3 flex gap-2">
+          <input
+            v-model="newSubtaskText"
+            class="input-bordered input w-full"
+            placeholder="Add a subtask..."
+            @keydown.enter.prevent="addTempSubtask"
+          />
+          <button type="button" class="btn btn-primary" @click="addTempSubtask">
+            Add
+          </button>
+        </div>
+      </div>
+
       <label class="flex cursor-pointer items-center gap-2">
         <input type="checkbox" class="checkbox" v-model="rememberOptions" />
         <span>Remember Options</span>
       </label>
     </div>
+
     <div class="flex justify-center">
       <button class="btn btn-outline" @click="onCancel">Cancel</button>
       <div class="px-4"></div>
@@ -290,7 +352,6 @@ function confirmInsert() {
     <div class="text-center text-base-content/70">Click a task to insert fields into the form</div>
 
     <div class="border border-base-300 bg-base-100 rounded-box p-6 mt-5 flex flex-col gap-2">
-      <!-- A trimmed down version of TaskItem -->
       <div
         v-for="task in sortedTaskList"
         :key="task.id"
@@ -302,7 +363,6 @@ function confirmInsert() {
           }
         "
       >
-        <!-- Left Side -->
         <div class="flex gap-3 items-center">
           <input
             class="checkbox m-0 pointer-events-none"
@@ -320,7 +380,6 @@ function confirmInsert() {
           </div>
         </div>
 
-        <!-- Right Side -->
         <div class="flex gap-2 flex-col lg:flex-row">
           <div class="badge badge-sm md:badge-md h-auto" :class="dueBadgeClass(dueDateLabel(task))">
             <b>Due:</b> {{ task.dueDate.toDateString() }}
@@ -332,6 +391,7 @@ function confirmInsert() {
       </div>
     </div>
   </BaseView>
+
   <ConfirmationModal
     ref="confirmInsertModalRef"
     title="Insert task fields"

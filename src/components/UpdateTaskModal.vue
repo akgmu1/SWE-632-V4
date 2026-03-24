@@ -23,6 +23,7 @@ const emits = defineEmits<Emits>()
 
 const task: Ref<Task | undefined> = ref(undefined)
 const subtasks: Ref<Subtask[]> = ref([])
+const tempSubtasks = ref<string[]>([])
 
 const dueDate = ref(new Date())
 
@@ -30,6 +31,7 @@ const categories: Ref<Category[]> = ref(categoryManager.all())
 const selectedCategory = ref<number>(0)
 const newCategoryName = ref('')
 const newCategoryColor = ref(randomColor())
+
 const currentCategory = computed(() => {
   return categoryManager.findBy('id', selectedCategory.value)!
 })
@@ -47,22 +49,15 @@ function onCategoryChange(val: number) {
 const newSubtaskText = ref('')
 
 function addSubtask() {
-  if (!task.value) return
-
   const text = newSubtaskText.value.trim()
   if (!text) return
 
-  subtaskManager.add({
-    taskId: task.value.id,
-    completed: false,
-    text,
-  })
-
-  subtasks.value = subtaskManager.filterBy('taskId', task.value.id)
-
-  emits('updateTask', task.value, true)
-
+  tempSubtasks.value.push(text)
   newSubtaskText.value = ''
+}
+
+function removeTempSubtask(index: number) {
+  tempSubtasks.value.splice(index, 1)
 }
 
 function toggleSubtask(subtask: Subtask, completed: boolean) {
@@ -79,11 +74,11 @@ function removeSubtask(subtask: Subtask) {
   if (!task.value) return
 
   subtaskManager.removeBy('id', subtask.id)
-
   subtasks.value = subtaskManager.filterBy('taskId', task.value.id)
 
   emits('updateTask', task.value, true)
 }
+
 const modalRef: Ref<InstanceType<typeof BaseModal> | null> = ref(null)
 
 defineExpose({
@@ -91,12 +86,14 @@ defineExpose({
     categories.value = categoryManager.all()
     task.value = t
     selectedCategory.value = t.category
-    subtasks.value = subtaskManager.filterBy('taskId', task.value.id)
+    subtasks.value = subtaskManager.filterBy('taskId', t.id)
+    tempSubtasks.value = []
     dueDate.value = t.dueDate
     title.value = t.title.trim()
     checkTitle()
     newCategoryName.value = ''
     newCategoryColor.value = randomColor()
+    newSubtaskText.value = ''
     modalRef.value!.showModal()
   },
   close: () => {
@@ -132,7 +129,7 @@ const canConfirm = computed(() => {
 })
 
 function onConfirm(): void {
-  if (!canConfirm.value) return
+  if (!canConfirm.value || !task.value) return
 
   let finalCategory: number = DEFAULT_CATEGORY
 
@@ -147,17 +144,28 @@ function onConfirm(): void {
     finalCategory = selectedCategory.value
   }
 
-  emits(
-    'updateTask',
-    {
-      ...task.value!,
-      title: title.value,
-      category: finalCategory,
-      dueDate: dateTrim(dueDate.value),
-    },
-    true,
-  )
+  const updatedTask: Task = {
+    ...task.value,
+    title: title.value.trim(),
+    category: finalCategory,
+    dueDate: dateTrim(dueDate.value),
+  }
 
+  emits('updateTask', updatedTask, true)
+
+  // Existing task flow: attach newly added subtasks immediately.
+  // If your create page uses a different component, copy this same pattern there.
+  tempSubtasks.value.forEach((text) => {
+    subtaskManager.add({
+      taskId: updatedTask.id,
+      completed: false,
+      text,
+    })
+  })
+
+  subtasks.value = subtaskManager.filterBy('taskId', updatedTask.id)
+  tempSubtasks.value = []
+  newSubtaskText.value = ''
   newCategoryName.value = ''
   newCategoryColor.value = randomColor()
 }
@@ -173,7 +181,6 @@ function onConfirm(): void {
   >
     <div class="container mx-auto pt-4 text-center">
       <div class="flex flex-col gap-4 sm:flex-row">
-        <!-- Title -->
         <label class="w-full input">
           <span class="label">Title</span>
           <div class="flex justify-center">
@@ -186,7 +193,6 @@ function onConfirm(): void {
           </div>
         </label>
 
-        <!-- Date -->
         <input
           type="date"
           :value="dateToYYYYMMDD(dueDate)"
@@ -196,9 +202,10 @@ function onConfirm(): void {
           class="input-bordered input w-full"
         />
       </div>
+
       <div :hidden="!titleErrorStr" class="text-error">Error: {{ titleErrorStr }}</div>
 
-      <div class="mx-auto flex items-center gap-3 mt-6">
+      <div class="mx-auto mt-6 flex items-center gap-3">
         <CategoryColor :category="currentCategory" />
 
         <select
@@ -208,14 +215,15 @@ function onConfirm(): void {
         >
           <option value="" disabled>Selected Category (optional)</option>
           <option v-for="c in categories" :key="c.id" :value="c.id">
-            <div v-if="c.id === META_ADD_NEW_CATEGORY">+ Add new category…</div>
-            <div v-else>{{ c.name }}</div>
+            {{ c.id === META_ADD_NEW_CATEGORY ? '+ Add new category…' : c.name }}
           </option>
         </select>
       </div>
-      <div v-if="isAddingNewCategory" class="flex items-center gap-3 mt-6">
+
+      <div v-if="isAddingNewCategory" class="mt-6 flex items-center gap-3">
         <ToolTip tip="Change Color" :direction="ToolTipDirection.Right">
           <button
+            type="button"
             @click="
               () => {
                 newCategoryColor = randomColor()
@@ -226,6 +234,7 @@ function onConfirm(): void {
             <CategoryColor :color="newCategoryColor" />
           </button>
         </ToolTip>
+
         <input
           v-model="newCategoryName"
           type="text"
@@ -238,7 +247,7 @@ function onConfirm(): void {
       <div class="mt-6 text-left">
         <div class="mb-2 font-semibold">Subtasks</div>
 
-        <div v-if="subtasks.length" class="space-y-2">
+        <div v-if="subtasks.length || tempSubtasks.length" class="space-y-2">
           <div v-for="s in subtasks" :key="s.id" class="flex items-center gap-2">
             <input
               type="checkbox"
@@ -252,6 +261,20 @@ function onConfirm(): void {
             </div>
 
             <button type="button" class="btn btn-ghost btn-xs" @click="removeSubtask(s)">
+              Remove
+            </button>
+          </div>
+
+          <div
+            v-for="(s, index) in tempSubtasks"
+            :key="`temp-${index}`"
+            class="flex items-center gap-2"
+          >
+            <div class="flex-1">
+              {{ s }}
+            </div>
+
+            <button type="button" class="btn btn-ghost btn-xs" @click="removeTempSubtask(index)">
               Remove
             </button>
           </div>

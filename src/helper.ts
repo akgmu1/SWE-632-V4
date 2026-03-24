@@ -121,5 +121,25 @@ export function createFormState<T extends Record<string, any>>(
     ;(Object.keys(touched) as (keyof FormTouched<T>)[]).forEach(touch)
   }
 
-  return { values, errors, state, touched, validateField, touch, touchAll, reset }
+  function clearTouchAndErrors() {
+    for (const key in errors) {
+      errors[key] = ''
+    }
+
+    for (const key in touched) {
+      touched[key] = false
+    }
+  }
+
+  return {
+    values,
+    errors,
+    state,
+    touched,
+    validateField,
+    touch,
+    touchAll,
+    reset,
+    clearTouchAndErrors,
+  }
 }

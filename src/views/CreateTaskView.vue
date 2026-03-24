@@ -14,7 +14,7 @@ import {
 } from '@/schemas/category'
 import { subtaskManager } from '@/schemas/subtask'
 import { taskManager, type Task } from '@/schemas/task'
-import { computed, nextTick, onMounted, ref, type Ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, type Ref } from 'vue'
 import z from 'zod'
 import BaseView from './BaseView.vue'
 
@@ -26,6 +26,9 @@ const form = createFormState(
     title: '',
     selectedCategory: DEFAULT_CATEGORY,
     newCategoryName: '',
+    newCategoryColor: randomColor(),
+    dueDate: new Date(),
+    rememberOptions: true,
   },
   {
     title: (x) => (x.trim().length > 0 ? '' : 'Title cannot be empty'),
@@ -53,10 +56,12 @@ const form = createFormState(
   },
 )
 
-const createButtonRef: Ref<HTMLInputElement | null> = ref(null)
+const currentCategory = computed(() => {
+  return categoryManager.findBy('id', form.values.selectedCategory)!
+})
 
-const dueDate = ref(new Date())
-const rememberOptions = ref(true)
+const createButtonRef: Ref<HTMLInputElement | null> = ref(null)
+const addSubtaskRef: Ref<HTMLInputElement | null> = ref(null)
 
 const rememberedOptionsSchema = z.object({
   dueDate: z.coerce.date(),
@@ -65,23 +70,45 @@ const rememberedOptionsSchema = z.object({
 
 const rememberedOptions = new DataManager(rememberedOptionsSchema, 'add-task-remembered-options')
 
-// const selectedCategory = ref<number>(DEFAULT_CATEGORY)
-// const newCategoryName = ref('')
-const newCategoryColor = ref(randomColor())
+const subtaskForm = createFormState(
+  {
+    newSubtaskText: '',
+  },
+  {
+    newSubtaskText: (x) => {
+      if (x.trim().length === 0) {
+        return 'Subtask text cannot be empty'
+      }
 
-const currentCategory = computed(() => {
-  return categoryManager.findBy('id', form.values.selectedCategory)!
+      return ''
+    },
+  },
+)
+
+watch(subtaskForm.state, (s) => {
+  if (s.hasErrors) {
+    setTimeout(() => {
+      subtaskForm.clearTouchAndErrors()
+    }, 3000)
+  }
 })
 
-const newSubtaskText = ref('')
-const tempSubtasks = ref<string[]>([])
+const tempSubtasks: Ref<string[]> = ref([])
 
-function addTempSubtask() {
-  const text = newSubtaskText.value.trim()
-  if (!text) return
+async function addTempSubtask() {
+  subtaskForm.touchAll()
+  await nextTick()
 
+  if (subtaskForm.state.hasErrors) {
+    triggerAddClass(addSubtaskRef.value!, 'animate-shake')
+    await nextTick()
+    ;(document.querySelector('.input-error')! as HTMLInputElement).focus()
+    return
+  }
+
+  const text = subtaskForm.values.newSubtaskText.trim()
   tempSubtasks.value.push(text)
-  newSubtaskText.value = ''
+  subtaskForm.reset()
 }
 
 function removeTempSubtask(index: number) {
@@ -96,7 +123,7 @@ function loadRememberedOptions() {
   if (categoryManager.findBy('id', x.category) === undefined) {
     x.category = DEFAULT_CATEGORY
   }
-  dueDate.value = x.dueDate
+  form.values.dueDate = x.dueDate
   form.values.selectedCategory = x.category
 }
 
@@ -105,9 +132,9 @@ onMounted(() => {
 })
 
 function saveRememberedOptions() {
-  if (!rememberOptions.value) return
+  if (!form.values.rememberOptions) return
   rememberedOptions.save({
-    dueDate: dateTrim(dueDate.value),
+    dueDate: dateTrim(form.values.dueDate),
     category: form.values.selectedCategory,
   })
 }
@@ -118,7 +145,7 @@ function onCategoryChange(val: number) {
   form.values.selectedCategory = val
   if (val !== META_ADD_NEW_CATEGORY) {
     form.values.newCategoryName = ''
-    newCategoryColor.value = randomColor()
+    form.values.newCategoryColor = randomColor()
   }
 }
 
@@ -140,7 +167,7 @@ async function onConfirm() {
     const newName = form.values.newCategoryName.trim()
     finalCategory = categoryManager.add({
       name: newName,
-      color: newCategoryColor.value,
+      color: form.values.newCategoryColor,
     })
     form.values.selectedCategory = finalCategory
   } else {
@@ -153,7 +180,7 @@ async function onConfirm() {
   const newTaskId = taskManager.add({
     title: text,
     completed: false,
-    dueDate: dueDate.value,
+    dueDate: form.values.dueDate,
     category: finalCategory,
     created: createdAt,
   })
@@ -169,17 +196,13 @@ async function onConfirm() {
   saveRememberedOptions()
 
   form.reset()
-  // title.value = ''
-  newSubtaskText.value = ''
+  subtaskForm.reset()
   tempSubtasks.value = []
 
-  if (!rememberOptions.value) {
-    dueDate.value = new Date()
+  if (!form.values.rememberOptions) {
+    form.values.dueDate = new Date()
     form.values.selectedCategory = DEFAULT_CATEGORY
   }
-
-  form.values.newCategoryName = ''
-  newCategoryColor.value = randomColor()
 
   taskList.value = taskManager.all()
 
@@ -248,7 +271,7 @@ function confirmInsert() {
     return
   }
   form.values.title = selectedTask.value.title
-  dueDate.value = selectedTask.value.dueDate
+  form.values.dueDate = selectedTask.value.dueDate
   form.values.selectedCategory = selectedTask.value.category
 }
 </script>
@@ -279,9 +302,12 @@ function confirmInsert() {
 
         <input
           type="date"
-          :value="dateToYYYYMMDD(dueDate)"
+          :value="dateToYYYYMMDD(form.values.dueDate)"
           @input="
-            dueDate = dateTrim(($event.target as HTMLInputElement).valueAsDate ?? new Date(), true)
+            form.values.dueDate = dateTrim(
+              ($event.target as HTMLInputElement).valueAsDate ?? new Date(),
+              true,
+            )
           "
           class="input-bordered input w-full"
         />
@@ -308,12 +334,12 @@ function confirmInsert() {
             type="button"
             @click="
               () => {
-                newCategoryColor = randomColor()
+                form.values.newCategoryColor = randomColor()
               }
             "
             class="cursor-pointer"
           >
-            <CategoryColor :color="newCategoryColor" />
+            <CategoryColor :color="form.values.newCategoryColor" />
           </button>
         </ToolTip>
         <div class="flex flex-col w-full">
@@ -372,19 +398,40 @@ function confirmInsert() {
           </div>
         </div>
 
-        <div class="mt-3 flex gap-2">
-          <input
-            v-model="newSubtaskText"
-            class="input-bordered input w-full"
-            placeholder="Add a subtask..."
-            @keydown.enter.prevent="addTempSubtask"
-          />
-          <button type="button" class="btn btn-primary" @click="addTempSubtask">Add</button>
+        <div class="flex flex-col">
+          <div class="mt-3 flex gap-2">
+            <input
+              v-model="subtaskForm.values.newSubtaskText"
+              class="input-bordered input w-full"
+              placeholder="Add a subtask..."
+              @keydown.enter.prevent="addTempSubtask"
+              :class="{
+                'input-error':
+                  subtaskForm.errors.newSubtaskText && subtaskForm.touched.newSubtaskText,
+              }"
+            />
+            <button
+              ref="addSubtaskRef"
+              type="button"
+              class="btn btn-primary"
+              @click="addTempSubtask"
+            >
+              Add
+            </button>
+          </div>
         </div>
+        <label
+          v-if="subtaskForm.errors.newSubtaskText && subtaskForm.touched.newSubtaskText"
+          class="label"
+        >
+          <div class="label-text-alt text-error text-wrap">
+            {{ subtaskForm.errors.newSubtaskText }}
+          </div>
+        </label>
       </div>
 
       <label class="flex cursor-pointer items-center gap-2">
-        <input type="checkbox" class="checkbox" v-model="rememberOptions" />
+        <input type="checkbox" class="checkbox" v-model="form.values.rememberOptions" />
         <span>Remember Options</span>
       </label>
     </div>

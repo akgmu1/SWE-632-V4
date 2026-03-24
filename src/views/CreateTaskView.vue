@@ -463,7 +463,7 @@ function confirmInsert() {
       <div
         v-for="task in sortedTaskList"
         :key="task.id"
-        class="flex justify-between items-center hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
+        class="flex justify-between items-center bg-base-200 lg:bg-transparent hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
         @click="
           () => {
             selectedTask = task

@@ -487,43 +487,52 @@ function confirmInsert() {
     <div class="text-center text-base-content/70">Click a task to insert fields into the form</div>
 
     <div class="border border-base-300 bg-base-100 rounded-box p-6 mt-5 flex flex-col gap-2">
-      <div
-        v-for="task in sortedTaskList"
-        :key="task.id"
-        class="flex justify-between items-center bg-base-200 lg:bg-transparent hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
-        @click="
-          () => {
-            selectedTask = task
-            confirmInsertModalRef?.showModal()
-          }
-        "
-      >
-        <div class="flex gap-3 items-center">
-          <input
-            class="checkbox m-0 pointer-events-none"
-            type="checkbox"
-            :checked="task.completed"
-          />
+      <template v-if="sortedTaskList.length === 0">
+        There are no recently created tasks, when there are you can insert them from here if you
+        choose to.
+      </template>
+      <template v-else>
+        <div
+          v-for="task in sortedTaskList"
+          :key="task.id"
+          class="flex justify-between items-center bg-base-200 lg:bg-transparent hover:bg-base-300 hover:shadow rounded p-2 py-1 cursor-pointer"
+          @click="
+            () => {
+              selectedTask = task
+              confirmInsertModalRef?.showModal()
+            }
+          "
+        >
+          <div class="flex gap-3 items-center">
+            <input
+              class="checkbox m-0 pointer-events-none"
+              type="checkbox"
+              :checked="task.completed"
+            />
 
-          <CategoryColor :category="categoryManager.findBy('id', task.category)" :size="4" />
+            <CategoryColor :category="categoryManager.findBy('id', task.category)" :size="4" />
 
-          <div class="flex flex-col gap-2">
-            <div class="truncate">Task: {{ task.title }}</div>
-            <div class="badge badge-outline badge-sm md:badge-md h-auto">
-              {{ categoryManager.findBy('id', task.category)?.name }}
+            <div class="flex flex-col gap-2">
+              <div class="truncate">Task: {{ task.title }}</div>
+              <div class="badge badge-outline badge-sm md:badge-md h-auto">
+                {{ categoryManager.findBy('id', task.category)?.name }}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 flex-col lg:flex-row">
+            <div
+              class="badge badge-sm md:badge-md h-auto"
+              :class="dueBadgeClass(dueDateLabel(task))"
+            >
+              <b>Due:</b> {{ task.dueDate.toDateString() }}
+            </div>
+            <div class="badge badge-ghost badge-sm md:badge-md h-auto">
+              {{ createdDateLabel(task) }}
             </div>
           </div>
         </div>
-
-        <div class="flex gap-2 flex-col lg:flex-row">
-          <div class="badge badge-sm md:badge-md h-auto" :class="dueBadgeClass(dueDateLabel(task))">
-            <b>Due:</b> {{ task.dueDate.toDateString() }}
-          </div>
-          <div class="badge badge-ghost badge-sm md:badge-md h-auto">
-            {{ createdDateLabel(task) }}
-          </div>
-        </div>
-      </div>
+      </template>
     </div>
   </BaseView>
 

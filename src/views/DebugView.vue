@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { dateTrim } from '@/helper'
+import { dateTrim, getRandomElement, randomDateNear, randomNumberNear } from '@/helper'
 import { notify } from '@/notification'
 import { DEFAULT_CATEGORY } from '@/schemas/category'
 import { taskManager, type CreateTask } from '@/schemas/task'
+import { timeEntryManager } from '@/schemas/timeEntry'
 import BaseView from './BaseView.vue'
-
-function showToast() {
-  const toast = document.getElementById('my-toast')!
-  toast.classList.remove('hidden') // Show
-
-  // Hide after 3 seconds (3000ms)
-  setTimeout(() => {
-    toast.classList.add('hidden')
-  }, 3000)
-}
 
 function resetTasks() {
   taskManager.reset(true)
-  showToast()
+  notify('Cleared tasks', 'info')
 }
 
 function addTestTasks() {
@@ -47,7 +38,20 @@ function addTestTasks() {
   for (const task of TASKS) {
     taskManager.add(task)
   }
-  showToast()
+  notify('Added test task', 'info')
+}
+
+function logRandom() {
+  const tasks = taskManager.all()
+  const task = getRandomElement(tasks)
+  if (!task) return
+  timeEntryManager.add({
+    taskId: task.id,
+    minutes: randomNumberNear(60, 5, 10, 210),
+    date: randomDateNear(new Date()),
+    note: '',
+  })
+  notify('Logged random entry', 'info')
 }
 </script>
 
@@ -74,6 +78,9 @@ function addTestTasks() {
         >
           Test notification
         </button>
+      </div>
+      <div>
+        <button @click="logRandom" class="btn btn-primary">Add Random Log Entry</button>
       </div>
     </div>
   </BaseView>

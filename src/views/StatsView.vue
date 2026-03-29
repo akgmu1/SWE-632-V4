@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import CategoryColor from '@/components/CategoryColor.vue'
-import { dateToYYYYMMDD, dateTrim } from '@/helper'
+import MiniCalendar from '@/components/MiniCalendar.vue'
+import { dateToYYYYMMDD, dateTrim, isSameDay } from '@/helper'
 import { categoryManager, type Category } from '@/schemas/category'
 import { taskManager, type Task } from '@/schemas/task'
 import { timeEntryManager, type TimeEntry } from '@/schemas/timeEntry'
@@ -153,6 +154,11 @@ const showAll: Ref<boolean> = ref(true)
 watch(showAll, (value) => {
   filter.value = value ? Filter.None : Filter.Date
 })
+
+const allEntries = ref(timeEntryManager.all())
+function categoryFromEntry(e: TimeEntry): Category | undefined {
+  return categoryManager.findBy('id', taskManager.findBy('id', e.taskId)?.category)
+}
 </script>
 
 <template>
@@ -161,27 +167,38 @@ watch(showAll, (value) => {
       <Doughnut :data="chartData" :options="chartOptions" />
     </div>
 
-    <div class="flex justify-between mt-5">
+    <div v-if="!showAll" class="flex justify-center mt-5">
+      <MiniCalendar v-model="selectedDate">
+        <template #day="{ date, isToday, isSelected }">
+          <div
+            class="text-center"
+            :class="{
+              'text-primary font-semibold': isToday && !isSelected,
+            }"
+          >
+            {{ date.getDate() }}
+          </div>
+          <div class="flex justify-center gap-0.5">
+            <template v-for="e in allEntries.filter((e) => isSameDay(e.date, date)).slice(0, 3)">
+              <div
+                :style="{
+                  '--entry-background': categoryFromEntry(e)?.color,
+                }"
+                class="inline-block w-1.5 h-1.5 rounded-full bg-(--entry-background)"
+              ></div>
+            </template>
+          </div>
+        </template>
+      </MiniCalendar>
+    </div>
+    <div class="flex justify-center mt-5">
       <label class="label">
         <input type="checkbox" v-model="showAll" class="checkbox" />
         Show All
       </label>
-      <label v-if="!showAll" class="input">
-        <span class="label">Selected Date</span>
-        <input
-          type="date"
-          :value="dateToYYYYMMDD(selectedDate)"
-          @input="
-            selectedDate = dateTrim(
-              ($event.target as HTMLInputElement).valueAsDate ?? new Date(),
-              true,
-            )
-          "
-        />
-      </label>
     </div>
 
-    <hr class="my-2" />
+    <hr class="mt-5" />
 
     <div v-if="timeEntries.length > 0">
       <div class="mt-5">

@@ -12,10 +12,62 @@ export function dateTrim(rawDate: Date, addOffset: boolean = false): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
+export function isSameDay(a?: Date, b?: Date) {
+  if (!a || !b) return false
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
 export function randomColor(): string {
   return `#${Math.floor(Math.random() * 0xffffff)
     .toString(16)
     .padStart(6, '0')}`
+}
+
+export function getRandomElement<T>(arr: T[]): T | undefined {
+  if (arr.length === 0) {
+    return undefined
+  }
+  const randomIndex = Math.floor(Math.random() * arr.length)
+  return arr[randomIndex]
+}
+
+export function gaussianRandom(): number {
+  // Generate a normally distributed value using Box-Muller transform
+  let u = 0,
+    v = 0
+  while (u === 0) u = Math.random() // avoid 0
+  while (v === 0) v = Math.random()
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)
+}
+
+export function randomNumberNear(
+  base: number,
+  std: number = 10,
+  min?: number,
+  max?: number,
+): number {
+  let value = base + gaussianRandom() * std
+
+  if (min !== undefined) value = Math.max(value, min)
+  if (max !== undefined) value = Math.min(value, max)
+
+  return value
+}
+
+export function randomDateNear(base: Date, std: number = 7, maxDays: number = 30): Date {
+  let dayOffset = Math.round(gaussianRandom() * std)
+
+  // Clamp to be within range
+  if (dayOffset > maxDays) dayOffset = maxDays
+  if (dayOffset < -maxDays) dayOffset = -maxDays
+
+  const result = new Date(base)
+  result.setDate(base.getDate() + dayOffset)
+  return result
 }
 
 import type { Task } from '@/schemas/task'

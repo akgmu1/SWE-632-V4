@@ -207,7 +207,7 @@ async function onConfirm() {
 
   for (const [index, s] of tempSubtasks.value.entries()) {
     // Either update or add
-    if (s.id) {
+    if (s.id !== undefined) {
       subtaskManager.updateBy('id', s.id, {
         ...s,
         order: index,

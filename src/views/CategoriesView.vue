@@ -162,19 +162,13 @@ const canConfirm = computed(() => !form.state.hasErrors)
         </label>
       </div>
       <div class="pt-2 flex gap-3">
-        <div>Click to the color to change it</div>
+        <div>Click the color to change it:</div>
         <div>
           <ToolTip tip="Change Color">
-            <button
-              @click="
-                () => {
-                  form.values.color = randomColor()
-                }
-              "
-              class="cursor-pointer"
-            >
+            <label class="cursor-pointer">
+              <input type="color" v-model="form.values.color" class="sr-only" />
               <CategoryColor :color="form.values.color" :size="6" />
-            </button>
+            </label>
           </ToolTip>
         </div>
       </div>

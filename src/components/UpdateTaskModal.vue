@@ -292,17 +292,10 @@ async function onConfirm() {
 
       <div v-if="isAddingNewCategory" class="mt-6 flex items-center gap-3">
         <ToolTip tip="Change Color" :direction="ToolTipDirection.Right">
-          <button
-            type="button"
-            @click="
-              () => {
-                form.values.newCategoryColor = randomColor()
-              }
-            "
-            class="cursor-pointer"
-          >
+          <label class="cursor-pointer">
+            <input type="color" v-model="form.values.newCategoryColor" class="sr-only" />
             <CategoryColor :color="form.values.newCategoryColor" />
-          </button>
+          </label>
         </ToolTip>
         <div class="flex flex-col w-full">
           <input

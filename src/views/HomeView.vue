@@ -51,7 +51,7 @@ const deletedTasks: Ref<Task[]> = ref(deletedTaskManager.all())
 const search = ref('')
 const q = computed(() => search.value.trim().toLowerCase())
 
-const filteredCategories: Ref<number[]> = ref([])
+const filteredCategories: Ref<Category[]> = ref([])
 
 function applyDirection(items: Task[]) {
   return sortDescending.value ? [...items].reverse() : items
@@ -65,7 +65,7 @@ const activeTasks = computed(() =>
           !t.completed &&
           (!q.value || t.title.toLowerCase().includes(q.value)) &&
           (filteredCategories.value.length === 0 ||
-            filteredCategories.value.some((c) => c === t.category)),
+            filteredCategories.value.some((c) => c.id === t.category)),
       ),
       sortOption.value,
     ),
@@ -80,7 +80,7 @@ const completedTasks = computed(() =>
           t.completed &&
           (!q.value || t.title.toLowerCase().includes(q.value)) &&
           (filteredCategories.value.length === 0 ||
-            filteredCategories.value.some((c) => c === t.category)),
+            filteredCategories.value.some((c) => c.id === t.category)),
       ),
       sortOption.value,
     ),
@@ -94,7 +94,7 @@ const filteredDeletedTasks = computed(() =>
         (t) =>
           (!q.value || t.title.toLowerCase().includes(q.value)) &&
           (filteredCategories.value.length === 0 ||
-            filteredCategories.value.some((c) => c === t.category)),
+            filteredCategories.value.some((c) => c.id === t.category)),
       ),
       sortOption.value,
     ),
@@ -241,14 +241,14 @@ const baseViewTitle = computed(() => {
                   <input
                     type="checkbox"
                     class="checkbox checkbox-sm"
-                    :checked="filteredCategories.some((f) => f === c.id)"
+                    :checked="filteredCategories.some((f) => f.id === c.id)"
                     @change="
                       (event) => {
                         const checked = (event.target as HTMLInputElement).checked
                         if (checked) {
-                          filteredCategories.push(c.id)
+                          filteredCategories.push(c)
                         } else {
-                          filteredCategories = filteredCategories.filter((f) => f !== c.id)
+                          filteredCategories = filteredCategories.filter((f) => f.id !== c.id)
                         }
                       }
                     "
@@ -261,16 +261,7 @@ const baseViewTitle = computed(() => {
               </template>
             </div>
             <div class="mt-2 text-end">
-              <button
-                class="btn btn-primary btn-xs"
-                @click="
-                  () => {
-                    filteredCategories = []
-                  }
-                "
-              >
-                Clear
-              </button>
+              <button class="btn btn-primary btn-xs" @click="filteredCategories = []">Clear</button>
             </div>
           </div>
         </div>
@@ -318,6 +309,25 @@ const baseViewTitle = computed(() => {
             Try a different search term or clear the search.
           </div>
           <button class="btn btn-ghost btn-sm mt-3" @click="search = ''">Clear search</button>
+        </div>
+
+        <div v-else-if="filteredCategories.length > 0" class="py-6 text-center">
+          <div class="text-base font-medium">No active tasks with category:</div>
+          <div class="flex flex-col gap-2">
+            <div v-for="c in filteredCategories" class="flex justify-center items-center gap-2">
+              <CategoryColor :category="c" :size="4" />
+              <div>
+                {{ c.name }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 text-sm text-base-content/70">
+            Try a different search term or clear the search.
+          </div>
+          <button class="btn btn-ghost btn-sm mt-2" @click="filteredCategories = []">
+            Clear filter
+          </button>
         </div>
 
         <div v-else class="py-2">

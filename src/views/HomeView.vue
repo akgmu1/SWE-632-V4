@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CategoryColor from '@/components/CategoryColor.vue'
 import ConfirmationModal from '@/components/ConfirmationModal.vue'
 import LogTimeModal from '@/components/LogTimeModal.vue'
 import SearchBar from '@/components/SearchBar.vue'
@@ -230,35 +231,38 @@ const baseViewTitle = computed(() => {
         <span class="text-sm font-medium">Filter:</span>
         <div class="dropdown dropdown-center">
           <div tabindex="0" role="button" class="select select-sm m-1">Category</div>
-          <ul
+          <div
             tabindex="-1"
             class="dropdown-content menu bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm"
           >
-            <template v-for="c in filterableCategories">
-              <li class="flex justify-start items-center flex-row">
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  :checked="filteredCategories.some((f) => f === c.id)"
-                  @change="
-                    (event) => {
-                      const checked = (event.target as HTMLInputElement).checked
-                      if (checked) {
-                        filteredCategories.push(c.id)
-                      } else {
-                        filteredCategories = filteredCategories.filter((f) => f !== c.id)
+            <div class="flex flex-col gap-2">
+              <template v-for="c in filterableCategories">
+                <div class="flex justify-start items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                    :checked="filteredCategories.some((f) => f === c.id)"
+                    @change="
+                      (event) => {
+                        const checked = (event.target as HTMLInputElement).checked
+                        if (checked) {
+                          filteredCategories.push(c.id)
+                        } else {
+                          filteredCategories = filteredCategories.filter((f) => f !== c.id)
+                        }
                       }
-                    }
-                  "
-                />
-                <div class="pointer-events-none">
-                  {{ c.name }}
+                    "
+                  />
+                  <CategoryColor :category="c" :size="4" />
+                  <div>
+                    {{ c.name }}
+                  </div>
                 </div>
-              </li>
-            </template>
-            <li>
+              </template>
+            </div>
+            <div class="mt-2 text-end">
               <button
-                class="btn btn-ghost"
+                class="btn btn-primary btn-xs"
                 @click="
                   () => {
                     filteredCategories = []
@@ -267,8 +271,8 @@ const baseViewTitle = computed(() => {
               >
                 Clear
               </button>
-            </li>
-          </ul>
+            </div>
+          </div>
         </div>
       </div>
 
